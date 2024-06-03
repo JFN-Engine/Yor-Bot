@@ -1,7 +1,7 @@
 import * as dotenv from "dotenv";
 dotenv.config();
 
-import { GatewayIntentBits, Interaction } from "discord.js";
+import { Interaction } from "discord.js";
 import { readdirSync } from "fs";
 import { join } from "path";
 import ExtendedClient from "./client";
