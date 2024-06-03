@@ -1,6 +1,9 @@
 # Usa una imagen base de Node.js
 FROM node:20-alpine
 
+# Instala las dependencias necesarias para compilar paquetes nativos
+RUN apk add --no-cache python3 make g++ ffmpeg
+
 # Establece el directorio de trabajo en el contenedor
 WORKDIR /usr/src/app
 
@@ -19,9 +22,6 @@ COPY . .
 
 # Compila la aplicación (reemplaza esto con tu comando de construcción real)
 RUN yarn build
-
-# Ejecuta el script deploy-commands.ts para registrar los comandos en Discord
-# RUN node dist/deploy-commands.js
 
 # Define el comando para ejecutar tu aplicación
 CMD ["node", "dist/main.js"]
