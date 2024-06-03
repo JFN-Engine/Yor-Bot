@@ -1,4 +1,5 @@
-import { Client, Collection } from "discord.js";
+import { Client, ClientOptions, Collection } from "discord.js";
+import { Player, PlayerInitOptions } from "discord-player";
 import { Command } from "./types";
 
 /**
@@ -7,10 +8,12 @@ import { Command } from "./types";
  */
 class ExtendedClient extends Client {
   commands: Collection<string, Command>;
+  player: Player;
 
-  constructor(options: any) {
+  constructor(options: ClientOptions, playerOptions: PlayerInitOptions) {
     super(options);
     this.commands = new Collection();
+    this.player = new Player(this, playerOptions);
   }
 }
 

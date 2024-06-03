@@ -1,5 +1,8 @@
+// File: commands/PlayCommand.ts
 import { ChatInputCommandInteraction, SlashCommandBuilder } from "discord.js";
 import ExtendedClient from "../client";
+import { validateInteraction } from "../helpers/interactionValidator";
+import { createServerQueue } from "../helpers/serverQueueManager";
 
 const playCommand = {
   data: new SlashCommandBuilder()
@@ -62,7 +65,13 @@ const playCommand = {
     client: ExtendedClient,
     interaction: ChatInputCommandInteraction
   ) => {
-    await interaction.reply("Play is working");
+    await validateInteraction(interaction);
+    const serverQueue = createServerQueue(client, interaction.guild);
+
+    if (!serverQueue.connection) {
+      //@ts-expect-error TS not recognizing validations performed before.
+      await serverQueue.connect(interaction.member.voice.channel);
+    }
   },
 };
 

@@ -6,15 +6,24 @@ import { readdirSync } from "fs";
 import { join } from "path";
 import ExtendedClient from "./client";
 import { Command } from "./types";
+
 /**
  * This file is responsible for initializing the Bot, and reading the commands
  * that are available on the commands folder
  */
 
 /*Tells to the bot the discord the events he is going to process */
-const client = new ExtendedClient({
-  intents: ["Guilds", "GuildMessages", "GuildVoiceStates"],
-});
+const client = new ExtendedClient(
+  {
+    intents: ["Guilds", "GuildMessages", "GuildVoiceStates"],
+  },
+  {
+    ytdlOptions: {
+      quality: "highestaudio",
+      highWaterMark: 1 << 25,
+    },
+  }
+);
 
 /*Read and register the commands*/
 const commandsPath = join(__dirname, "commands");
