@@ -2,11 +2,16 @@ import {
   ChatInputCommandInteraction,
   SlashCommandBuilder,
   GuildMember,
+  ButtonBuilder,
+  ButtonStyle,
+  ActionRowBuilder,
+  ComponentType,
 } from "discord.js";
 import ExtendedClient from "../client";
 import { validateInteraction } from "../helpers/interactionValidator";
 import { SearchResultType } from "distube";
 import { embedBuilder, secondsToMinutes } from "../utils/utils";
+import { playInteraction } from "../helpers/playInteraction";
 
 const playCommand = {
   data: new SlashCommandBuilder()
@@ -37,27 +42,6 @@ const playCommand = {
             .setMaxValue(100)
             .setRequired(true)
         )
-    )
-    .addSubcommand((subcommand) =>
-      subcommand
-        .setName("options")
-        .setDescription("Options for music system.")
-        .addStringOption((option) =>
-          option
-            .setName("options")
-            .setDescription("Select music options")
-            .setRequired(true)
-            .addChoices(
-              { name: "queue", value: "queue" },
-              { name: "skip", value: "skip" },
-              { name: "pause", value: "pause" },
-              { name: "resume", value: "resume" },
-              { name: "stop", value: "stop" },
-              { name: "loop-queue", value: "loopqueue" },
-              { name: "loop-all", value: "loopall" },
-              { name: "autoplay", value: "autoplay" }
-            )
-        )
     ),
 
   execute: async (
@@ -69,7 +53,7 @@ const playCommand = {
     await interaction.deferReply();
 
     if (interactionError) {
-      return await interaction.editReply({
+      await interaction.editReply({
         embeds: [
           embedBuilder(`Something just happened`, interactionError, 0xff2a16, {
             name: interaction.user.username,
@@ -92,7 +76,7 @@ const playCommand = {
       guild?.members.me?.voice.channelId !== null &&
       channelId !== guild?.members.me?.voice.channelId
     ) {
-      return interaction.reply({
+      await interaction.reply({
         embeds: [
           embedBuilder(
             `Something just happened`,
@@ -109,7 +93,7 @@ const playCommand = {
 
     if (subCommand === "song") {
       if (!query) {
-        return await interaction.editReply({
+        await interaction.editReply({
           embeds: [
             embedBuilder(
               `Something just happened`,
@@ -130,7 +114,7 @@ const playCommand = {
       });
 
       if (search.length == 0) {
-        return await interaction.editReply({
+        await interaction.editReply({
           embeds: [
             embedBuilder(
               `No Results Found`,
@@ -145,28 +129,116 @@ const playCommand = {
         });
       }
 
+      const queue = await client.distube.getQueue(voiceChannel);
+
       await client.distube.play(voiceChannel, query, {
         textChannel: voiceChannel,
         member: member as GuildMember,
       });
 
-      return await interaction.editReply({
-        embeds: [
-          embedBuilder(
-            `Track Found`,
-            `**[${search[0].name}](${search[0].url})**`,
-            0x00fa9a,
+      let reply;
+
+      if (!queue?.playing) {
+        reply = await interaction.editReply({
+          embeds: [
+            embedBuilder(
+              `Track Found`,
+              `**[${search[0].name}](${search[0].url})**`,
+              0x00fa9a,
+              {
+                name: interaction.user.username,
+                iconURL: interaction.user.displayAvatarURL(),
+              },
+              search[0].thumbnail,
+              {
+                text: `Duration: ${secondsToMinutes(search[0].duration)} `,
+              }
+            ),
+          ],
+          components: [
             {
-              name: interaction.user.username,
-              iconURL: interaction.user.displayAvatarURL(),
+              type: 1,
+              components: [
+                {
+                  type: ComponentType.Button,
+                  style: ButtonStyle.Danger,
+                  custom_id: "Stop",
+                  emoji: {
+                    id: "1122098224098979840",
+                  },
+                },
+                {
+                  type: ComponentType.Button,
+                  style: ButtonStyle.Secondary,
+                  custom_id: "Pause",
+                  emoji: {
+                    id: "1122097586246008895",
+                  },
+                },
+                {
+                  type: ComponentType.Button,
+                  style: ButtonStyle.Primary,
+                  custom_id: "Skip",
+                  emoji: {
+                    id: "1122099413679095808",
+                  },
+                },
+                {
+                  type: ComponentType.Button,
+                  style: ButtonStyle.Primary,
+                  custom_id: "ShowPlaylist",
+                  emoji: {
+                    id: "1122101739760398447",
+                  },
+                },
+              ],
             },
-            search[0].thumbnail,
+          ],
+        });
+      } else {
+        reply = await interaction.editReply({
+          embeds: [
+            embedBuilder(
+              `Track Queued Succesfully!`,
+              `**[${search[0].name}](${search[0].url})**`,
+              0x00fa9a,
+              {
+                name: interaction.user.username,
+                iconURL: interaction.user.displayAvatarURL(),
+              },
+              search[0].thumbnail,
+              {
+                text: `Duration: ${secondsToMinutes(search[0].duration)} `,
+              }
+            ),
+          ],
+          components: [
             {
-              text: `Duration: ${secondsToMinutes(search[0].duration)} `,
-            }
-          ),
-        ],
-      });
+              type: 1,
+              components: [
+                {
+                  type: ComponentType.Button,
+                  style: ButtonStyle.Primary,
+                  custom_id: "ShowPlaylist",
+                  emoji: {
+                    id: "1122101739760398447",
+                  },
+                },
+              ],
+            },
+          ],
+        });
+      }
+
+      try {
+        const confirmation = await reply.awaitMessageComponent({
+          time: 60_000,
+        });
+
+        playInteraction(client, voiceChannel, interaction, confirmation, queue);
+      } catch (e: any) {
+        console.log(e.message);
+      }
     }
   },
 };

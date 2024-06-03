@@ -1,23 +1,17 @@
 import * as dotenv from "dotenv";
-dotenv.config();
-import { CacheType, Interaction, REST, Routes } from "discord.js";
 import { readdirSync } from "fs";
 import { join } from "path";
 import ExtendedClient from "./client";
 import { Command } from "./types";
-import type { SlashCommandProps } from "commandkit";
+import { REST } from "discord.js";
+import { Routes } from "discord-api-types/v9";
 
-/**
- * This file is responsible for initializing the Bot, and reading the commands
- * that are available on the commands folder
- */
+dotenv.config();
 
-/*Tells to the bot the discord the events he is going to process */
 const client = new ExtendedClient({
   intents: ["Guilds", "GuildMessages", "GuildVoiceStates"],
 });
 
-/*Read and register the commands*/
 const commands: Array<any> = [];
 const commandsPath = join(__dirname, "commands");
 const commandFiles = readdirSync(commandsPath).filter((file) =>
@@ -40,8 +34,8 @@ for (const file of commandFiles) {
   }
 }
 
-client.on("ready", () => {
-  const guild_ids = client.guilds.cache.map((guild) => guild.id);
+client.on("ready", async () => {
+  const guildIds = client.guilds.cache.map((guild) => guild.id);
 
   const rest = new REST({ version: "9" }).setToken(
     process.env.DC_BOT_TOKEN ?? ""
@@ -49,32 +43,23 @@ client.on("ready", () => {
 
   console.log("Started refreshing application (/) commands.");
 
-  for (const guildId of guild_ids) {
-    rest
-      .put(
+  for (const guildId of guildIds) {
+    try {
+      await rest.put(
         Routes.applicationGuildCommands(process.env.DC_APP_ID ?? "", guildId),
-        {
-          body: commands,
-        }
-      )
-      .then(() =>
-        console.log(
-          `Successfully reloaded application (/) commands for guild ${guildId}.`
-        )
-      )
-      .catch(console.error);
+        { body: commands }
+      );
+      console.log(
+        `Successfully reloaded application (/) commands for guild ${guildId}.`
+      );
+    } catch (error) {
+      console.error(`Error refreshing commands for guild ${guildId}:`, error);
+    }
   }
 });
 
-/*
-Is listening for a command entered by a user and the it validate's if the command
-exists on the app
-*/
-client.on("interactionCreate", async (interaction: Interaction<CacheType>) => {
-  if (!interaction.isCommand()) return;
-
-  // Ensure it is a ChatInputCommandInteraction
-  if (!interaction.isChatInputCommand()) return;
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isCommand() || !interaction.isChatInputCommand()) return;
 
   const command = client.commands.get(interaction.commandName);
 
