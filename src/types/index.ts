@@ -8,3 +8,8 @@ export interface Command {
     interaction: ChatInputCommandInteraction
   ) => Promise<void>;
 }
+
+export type AuthorProps = {
+  name: string;
+  iconURL: string;
+};

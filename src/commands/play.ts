@@ -1,21 +1,12 @@
 import {
-  EmbedBuilder,
   ChatInputCommandInteraction,
   SlashCommandBuilder,
-  StringSelectMenuOptionBuilder,
-  StringSelectMenuBuilder,
-  ActionRowBuilder,
-  ComponentType,
   GuildMember,
 } from "discord.js";
 import ExtendedClient from "../client";
 import { validateInteraction } from "../helpers/interactionValidator";
-import { createServerQueue } from "../helpers/serverQueueManager";
-import { QueryType, useMainPlayer } from "discord-player";
-import { join } from "path";
-import { SearchYtLink } from "../utils/fetchYT";
-import { Interaction } from "discord.js";
-import { DisTube, QueueManager, SearchResultType } from "distube";
+import { SearchResultType } from "distube";
+import { embedBuilder, secondsToMinutes } from "../utils/utils";
 
 const playCommand = {
   data: new SlashCommandBuilder()
@@ -23,54 +14,49 @@ const playCommand = {
     .setDescription("Play one or more songs")
     .addSubcommand((subcommand) =>
       subcommand
-        .setName("spotify-song")
+        .setName("song")
         .setDescription(
-          "Search for a single song by its name on spotify and plays it"
+          "Search for a single song with its name or url on youtube and plays it"
         )
         .addStringOption((option) =>
           option
-            .setName("song-name")
-            .setDescription("The song name")
+            .setName("query")
+            .setDescription("The song query to search")
             .setRequired(true)
         )
     )
     .addSubcommand((subcommand) =>
       subcommand
-        .setName("spotify-playlist")
-        .setDescription(
-          "Search for a playlist with an url on youtube and plays it"
-        )
-        .addStringOption((option) =>
+        .setName("volume")
+        .setDescription("Adjuste the volume of the song.")
+        .addNumberOption((option) =>
           option
-            .setName("playlist-url")
-            .setDescription("The playlist URL")
+            .setName("percentage")
+            .setDescription("Adjuste volume in appropiate units: 10 = 10%")
+            .setMinValue(1)
+            .setMaxValue(100)
             .setRequired(true)
         )
     )
     .addSubcommand((subcommand) =>
       subcommand
-        .setName("youtube-song")
-        .setDescription(
-          "Search for a single song with an url on youtube and plays it"
-        )
+        .setName("options")
+        .setDescription("Options for music system.")
         .addStringOption((option) =>
           option
-            .setName("song_url")
-            .setDescription("The song URL")
+            .setName("options")
+            .setDescription("Select music options")
             .setRequired(true)
-        )
-    )
-    .addSubcommand((subcommand) =>
-      subcommand
-        .setName("youtube-playlist")
-        .setDescription(
-          "Search for a playlist with an url on youtube and plays it"
-        )
-        .addStringOption((option) =>
-          option
-            .setName("playlist-url")
-            .setDescription("The playlist URL")
-            .setRequired(true)
+            .addChoices(
+              { name: "queue", value: "queue" },
+              { name: "skip", value: "skip" },
+              { name: "pause", value: "pause" },
+              { name: "resume", value: "resume" },
+              { name: "stop", value: "stop" },
+              { name: "loop-queue", value: "loopqueue" },
+              { name: "loop-all", value: "loopall" },
+              { name: "autoplay", value: "autoplay" }
+            )
         )
     ),
 
@@ -80,76 +66,107 @@ const playCommand = {
   ) => {
     const interactionError = await validateInteraction(interaction);
 
+    await interaction.deferReply();
+
     if (interactionError) {
-      return interaction.reply(interactionError);
+      return await interaction.editReply({
+        embeds: [
+          embedBuilder(`Something just happened`, interactionError, 0xff2a16, {
+            name: interaction.user.username,
+            iconURL: interaction.user.displayAvatarURL(),
+          }),
+        ],
+      });
     }
 
-    const distube = new DisTube(client);
+    const { options, member, guild, channel } = interaction;
 
-    const serverQueue = new QueueManager(distube);
-    //@ts-expect-error TS not recognizing validations performed before.
-    const channel = interaction.member.voice.channel!;
+    const subCommand = options.getSubcommand();
+    const query = options.getString("query", true);
+    // const volume = options.getNumber("percentage", true);
+    // const option = options.getString("options", true);
+    const channelId = (member as GuildMember)?.voice.channelId;
+    const voiceChannel = (member as GuildMember)?.voice.channel!;
 
-    const embedElement = new EmbedBuilder();
+    if (
+      guild?.members.me?.voice.channelId !== null &&
+      channelId !== guild?.members.me?.voice.channelId
+    ) {
+      return interaction.reply({
+        embeds: [
+          embedBuilder(
+            `Something just happened`,
+            `You can't use the music system because it's already in use in <#${guild?.members.me?.voice.channelId}>`,
+            0xff2a16,
+            {
+              name: interaction.user.username,
+              iconURL: interaction.user.displayAvatarURL(),
+            }
+          ),
+        ],
+      });
+    }
 
-    if (interaction.options.getSubcommand() === "youtube-song") {
-      const query = interaction.options.getString("song_url", true);
-
+    if (subCommand === "song") {
       if (!query) {
-        return await interaction.reply(
-          "A value needs to be entered in the field."
-        );
+        return await interaction.editReply({
+          embeds: [
+            embedBuilder(
+              `Something just happened`,
+              "A value needs to be entered in the field.",
+              0xff2a16,
+              {
+                name: interaction.user.username,
+                iconURL: interaction.user.displayAvatarURL(),
+              }
+            ),
+          ],
+        });
       }
 
-      const search = await distube.search(query, {
+      const search: Array<any> = await client.distube.search(query, {
         type: SearchResultType.VIDEO,
-        limit: 4,
+        limit: 1,
       });
 
       if (search.length == 0) {
-        const embed = embedElement
-          .setTitle(`No Results Found`)
-          .setDescription(`No results found for \`${query}\``)
-          .setColor(0xff2a16)
-          .setAuthor({
-            name: interaction.user.username,
-            iconURL: interaction.user.displayAvatarURL(),
-          });
-
-        return interaction.reply({ embeds: [embed] });
+        return await interaction.editReply({
+          embeds: [
+            embedBuilder(
+              `No Results Found`,
+              `No results found for \`${query}\``,
+              0xff2a16,
+              {
+                name: interaction.user.username,
+                iconURL: interaction.user.displayAvatarURL(),
+              }
+            ),
+          ],
+        });
       }
 
-      // serverQueue.create(channel, search[0], channel);
+      await client.distube.play(voiceChannel, query, {
+        textChannel: voiceChannel,
+        member: member as GuildMember,
+      });
 
-      await distube.play(channel, query);
-
-      // const embed = embedElement
-      //   .setTitle(
-      //     `${searchResult.hasPlaylist() ? "Playlist" : "Track"} queued!`
-      //   )
-      //   .setDescription(`**[${track.title}](${track.url})**`)
-      //   .setThumbnail(track.thumbnail)
-      //   .setFooter({ text: `Duration: ${track.duration}` })
-      //   .setColor(0x00fa9a)
-      //   .setAuthor({
-      //     name: interaction.user.username,
-      //     iconURL: interaction.user.displayAvatarURL(),
-      //   })
-      //   .setFields(
-      //     searchResult.playlist
-      //       ? [{ name: "Playlist", value: searchResult.playlist.title }]
-      //       : []
-      //   );
-
-      // return interaction.reply({
-      //   embeds: [embed],
-      // });
-      // });
-      // if (!result.hasTracks()) {
-
-      // }
-
-      // const { track, searchResult } = await player.play(channel, result);
+      return await interaction.editReply({
+        embeds: [
+          embedBuilder(
+            `Track Found`,
+            `**[${search[0].name}](${search[0].url})**`,
+            0x00fa9a,
+            {
+              name: interaction.user.username,
+              iconURL: interaction.user.displayAvatarURL(),
+            },
+            search[0].thumbnail,
+            {
+              text: `Duration: ${secondsToMinutes(search[0].duration)} `,
+            }
+          ),
+        ],
+      });
     }
   },
 };
