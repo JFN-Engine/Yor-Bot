@@ -2,11 +2,20 @@ import {
   EmbedBuilder,
   ChatInputCommandInteraction,
   SlashCommandBuilder,
+  StringSelectMenuOptionBuilder,
+  StringSelectMenuBuilder,
+  ActionRowBuilder,
+  ComponentType,
+  GuildMember,
 } from "discord.js";
 import ExtendedClient from "../client";
 import { validateInteraction } from "../helpers/interactionValidator";
 import { createServerQueue } from "../helpers/serverQueueManager";
-import { QueryType } from "discord-player";
+import { QueryType, useMainPlayer } from "discord-player";
+import { join } from "path";
+import { SearchYtLink } from "../utils/fetchYT";
+import { Interaction } from "discord.js";
+import { DisTube, QueueManager, SearchResultType } from "distube";
 
 const playCommand = {
   data: new SlashCommandBuilder()
@@ -70,52 +79,78 @@ const playCommand = {
     interaction: ChatInputCommandInteraction
   ) => {
     const interactionError = await validateInteraction(interaction);
+
     if (interactionError) {
       return interaction.reply(interactionError);
     }
-    const serverQueue = createServerQueue(client, interaction.guild);
 
-    if (!serverQueue.connection) {
-      //@ts-expect-error TS not recognizing validations performed before.
-      await serverQueue.connect(interaction.member.voice.channel);
-    }
+    const distube = new DisTube(client);
+
+    const serverQueue = new QueueManager(distube);
+    //@ts-expect-error TS not recognizing validations performed before.
+    const channel = interaction.member.voice.channel!;
 
     const embedElement = new EmbedBuilder();
 
     if (interaction.options.getSubcommand() === "youtube-song") {
-      const query = interaction.options.getString("song-url");
-      console.log(query);
+      const query = interaction.options.getString("song_url", true);
+
       if (!query) {
         return await interaction.reply(
           "A value needs to be entered in the field."
         );
       }
 
-      const result = await client.player.search(query, {
-        searchEngine: QueryType.AUTO,
+      const search = await distube.search(query, {
+        type: SearchResultType.VIDEO,
+        limit: 4,
       });
 
-      if (result.tracks.length === 0) {
-        return interaction.reply("No tracks found.");
+      if (search.length == 0) {
+        const embed = embedElement
+          .setTitle(`No Results Found`)
+          .setDescription(`No results found for \`${query}\``)
+          .setColor(0xff2a16)
+          .setAuthor({
+            name: interaction.user.username,
+            iconURL: interaction.user.displayAvatarURL(),
+          });
+
+        return interaction.reply({ embeds: [embed] });
       }
 
-      const song = result.tracks[0];
-      serverQueue.addTrack(song);
+      // serverQueue.create(channel, search[0], channel);
 
-      embedElement
-        .setDescription(
-          `**[${song.title}](${song.url})** has been added to the Queue`
-        )
-        .setThumbnail(song.thumbnail)
-        .setFooter({ text: `Duration: ${song.duration}` });
+      await distube.play(channel, query);
+
+      // const embed = embedElement
+      //   .setTitle(
+      //     `${searchResult.hasPlaylist() ? "Playlist" : "Track"} queued!`
+      //   )
+      //   .setDescription(`**[${track.title}](${track.url})**`)
+      //   .setThumbnail(track.thumbnail)
+      //   .setFooter({ text: `Duration: ${track.duration}` })
+      //   .setColor(0x00fa9a)
+      //   .setAuthor({
+      //     name: interaction.user.username,
+      //     iconURL: interaction.user.displayAvatarURL(),
+      //   })
+      //   .setFields(
+      //     searchResult.playlist
+      //       ? [{ name: "Playlist", value: searchResult.playlist.title }]
+      //       : []
+      //   );
+
+      // return interaction.reply({
+      //   embeds: [embed],
+      // });
+      // });
+      // if (!result.hasTracks()) {
+
+      // }
+
+      // const { track, searchResult } = await player.play(channel, result);
     }
-
-    // if (!serverQueue.isPlaying) await serverQueue.play();
-
-    // Respond with the embed containing information about the player
-    await interaction.reply({
-      embeds: [embedElement],
-    });
   },
 };
 

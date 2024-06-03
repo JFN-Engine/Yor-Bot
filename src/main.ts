@@ -1,10 +1,11 @@
 import * as dotenv from "dotenv";
 dotenv.config();
-import { Interaction, REST, Routes } from "discord.js";
+import { CacheType, Interaction, REST, Routes } from "discord.js";
 import { readdirSync } from "fs";
 import { join } from "path";
 import ExtendedClient from "./client";
 import { Command } from "./types";
+import type { SlashCommandProps } from "commandkit";
 
 /**
  * This file is responsible for initializing the Bot, and reading the commands
@@ -12,17 +13,9 @@ import { Command } from "./types";
  */
 
 /*Tells to the bot the discord the events he is going to process */
-const client = new ExtendedClient(
-  {
-    intents: ["Guilds", "GuildMessages", "GuildVoiceStates"],
-  },
-  {
-    ytdlOptions: {
-      quality: "highestaudio",
-      highWaterMark: 1 << 25,
-    },
-  }
-);
+const client = new ExtendedClient({
+  intents: ["Guilds", "GuildMessages", "GuildVoiceStates"],
+});
 
 /*Read and register the commands*/
 const commands: Array<any> = [];
@@ -77,11 +70,10 @@ client.on("ready", () => {
 Is listening for a command entered by a user and the it validate's if the command
 exists on the app
 */
-client.on("interactionCreate", async (interaction: Interaction) => {
-  console.log("Interaction");
+client.on("interactionCreate", async (interaction: Interaction<CacheType>) => {
   if (!interaction.isCommand()) return;
 
-  // Usar type guard para asegurarse de que es un ChatInputCommandInteraction
+  // Ensure it is a ChatInputCommandInteraction
   if (!interaction.isChatInputCommand()) return;
 
   const command = client.commands.get(interaction.commandName);
@@ -89,10 +81,10 @@ client.on("interactionCreate", async (interaction: Interaction) => {
   if (!command) return;
 
   try {
-    return await command.execute(client, interaction);
+    await command.execute(client, interaction);
   } catch (error) {
     console.error(error);
-    return await interaction.reply({
+    await interaction.reply({
       content: "There was an error executing that command!",
       ephemeral: true,
     });
