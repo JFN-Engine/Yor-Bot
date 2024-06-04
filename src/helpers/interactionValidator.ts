@@ -17,3 +17,8 @@ export const validateInteraction = async (
 
   return null;
 };
+
+export const isBotVoiceChannelOccupied = (guild: any, channelId: any) => {
+  const botVoiceChannelId = guild?.members.me?.voice.channelId;
+  return botVoiceChannelId !== null && channelId !== botVoiceChannelId;
+};
