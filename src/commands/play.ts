@@ -235,7 +235,7 @@ const playCommand = {
           time: 60_000,
         });
 
-        playInteraction(client, voiceChannel, interaction, confirmation, queue);
+        playInteraction(client, voiceChannel, interaction, confirmation);
       } catch (e: any) {
         console.log(e.message);
       }

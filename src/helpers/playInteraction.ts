@@ -7,18 +7,26 @@ export const playInteraction = async (
   client: ExtendedClient,
   voiceChannel: VoiceBasedChannel,
   interaction: Interaction,
-  confirmation: any,
-  queue?: Queue
+  confirmation: any
+  // queue?: Queue
 ) => {
   const { customId } = confirmation;
-
+  const queue = client.distube.getQueue(voiceChannel);
   switch (customId) {
     case "Stop":
       await confirmation.reply({ content: "Acción realizada Stop!" });
 
       break;
     case "Pause":
-      await confirmation.reply({ content: "Acción realizada Pause!" });
+      if (!queue) {
+        await confirmation.reply({
+          content: "No hay ninguna canción en reproducción.",
+        });
+        return;
+      }
+
+      client.distube.pause(voiceChannel);
+      await confirmation.reply({ content: "Acción realizada: Pause!" });
       break;
     case "Skip":
       await confirmation.reply({ content: "Acción realizada Skip!" });
