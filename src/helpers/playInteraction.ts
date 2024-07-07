@@ -14,8 +14,13 @@ export const playInteraction = async (
   const queue = client.distube.getQueue(voiceChannel);
   switch (customId) {
     case "Stop":
-      await confirmation.reply({ content: "Acción realizada Stop!" });
-
+      if (!queue) { 
+        await confirmation.reply({ 
+          content: "No hay ninguna canción reproduciéndose." 
+        });
+        return;
+      }
+      queue.stop();
       break;
     case "Pause":
       if (!queue) {
